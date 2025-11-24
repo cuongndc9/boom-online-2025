@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Boom Bóng Nước Huyền Thoại</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Vt323&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #2c3e50;
+            overflow: hidden;
+            font-family: 'Vt323', monospace;
+            touch-action: none; /* Ngăn chặn zoom/scroll trên mobile */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #4caf50;
+        }
+
+        canvas {
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background-color: #5D9E43; /* Màu cỏ */
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        #top-bar {
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 10px;
+            display: flex;
+            justify-content: space-around;
+            font-size: 24px;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            pointer-events: auto;
+            display: none; /* Hiện bằng JS nếu là mobile */
+            width: 100%;
+            height: 180px;
+            padding-bottom: 20px;
+            box-sizing: border-box;
+            justify-content: space-between;
+            padding-left: 20px;
+            padding-right: 20px;
+            align-items: center;
+        }
+
+        .d-pad {
+            position: relative;
+            width: 140px;
+            height: 140px;
+        }
+
+        .d-btn {
+            position: absolute;
+            width: 45px;
+            height: 45px;
+            background: rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            color: white;
+            user-select: none;
+        }
+        
+        .d-btn:active { background: rgba(255, 255, 255, 0.6); }
+        .d-up { top: 0; left: 47.5px; }
+        .d-down { bottom: 0; left: 47.5px; }
+        .d-left { top: 47.5px; left: 0; }
+        .d-right { top: 47.5px; right: 0; }
+
+        .action-btn {
+            width: 90px;
+            height: 90px;
+            background: rgba(255, 50, 50, 0.5);
+            border: 4px solid rgba(255, 100, 100, 0.8);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            user-select: none;
+        }
+        .action-btn:active { background: rgba(255, 50, 50, 0.8); transform: scale(0.95); }
+
+        /* Screens */
+        .screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+            pointer-events: auto;
+        }
+        .hidden { display: none !important; }
+        
+        h1 { font-size: 60px; margin: 0; color: #ffeb3b; text-shadow: 4px 4px #d32f2f; text-align: center; line-height: 1;}
+        h2 { font-size: 40px; color: #fff; text-shadow: 2px 2px #000; }
+        p { font-size: 24px; color: #ccc; text-align: center; max-width: 80%; }
+        
+        .btn {
+            margin-top: 20px;
+            padding: 15px 40px;
+            font-size: 30px;
+            font-family: 'Vt323', monospace;
+            background: #ff5722;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 6px #bf360c;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: translateY(4px); box-shadow: 0 2px #bf360c; }
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div id="top-bar">
+            <span>Màn: <span id="level-display">1</span></span>
+            <span>Quái: <span id="enemies-display">0</span></span>
+            <span>Mạng: <span id="lives-display">3</span></span>
+        </div>
+        
+        <!-- Khoảng trống ở giữa -->
+        <div style="flex-grow: 1;"></div>
+
+        <div id="mobile-controls">
+            <div class="d-pad">
+                <div class="d-btn d-up" data-key="ArrowUp">▲</div>
+                <div class="d-btn d-left" data-key="ArrowLeft">◀</div>
+                <div class="d-btn d-right" data-key="ArrowRight">▶</div>
+                <div class="d-btn d-down" data-key="ArrowDown">▼</div>
+            </div>
+            <div class="action-btn" id="btn-bomb">BOMB</div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="screen">
+        <h1>BOOM<br>BÓNG NƯỚC</h1>
+        <p>Diệt sạch quái vật để qua màn!</p>
+        <p>PC: Phím Mũi tên + Space<br>Mobile: Nút cảm ứng</p>
+        <button class="btn" onclick="startGame()">CHƠI NGAY</button>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen" class="screen hidden">
+        <h1 style="color: #f44336;">THUA RỒI!</h1>
+        <p id="death-reason">Bạn đã bị bắt.</p>
+        <button class="btn" onclick="restartGame()">CHƠI LẠI</button>
+    </div>
+
+    <!-- Level Complete Screen -->
+    <div id="level-screen" class="screen hidden">
+        <h1 style="color: #4caf50;">HOÀN THÀNH!</h1>
+        <p>Chuẩn bị sang màn tiếp theo...</p>
+    </div>
+
+    <!-- Win Game Screen -->
+    <div id="win-screen" class="screen hidden">
+        <h1 style="color: #ffeb3b;">CHIẾN THẮNG!</h1>
+        <p>Bạn đã phá đảo huyền thoại!</p>
+        <button class="btn" onclick="restartGame()">CHƠI LẠI TỪ ĐẦU</button>
+    </div>
+</div>
+
+<script>
+/**
+ * CẤU HÌNH GAME
+ */
+const TILE_SIZE = 40; // Kích thước mỗi ô (cơ sở, sẽ scale theo màn hình)
+const GRID_W = 15;    // Số ô ngang (lẻ để tạo lưới đẹp)
+const GRID_H = 11;    // Số ô dọc
+const MAX_LEVEL = 3;
+
+// Các loại Tile
+const TILE = {
+    EMPTY: 0,
+    WALL_HARD: 1, // Tường không phá được
+    WALL_SOFT: 2, // Gạch phá được
+    BOMB: 3,
+    EXPLOSION: 4
+};
+
+// Cấu hình vật phẩm
+const ITEM = {
+    NONE: 0,
+    BLAST_RANGE: 1, // Tăng tầm nổ
+    EXTRA_BOMB: 2,  // Tăng số lượng bom
+    SPEED: 3        // Giày chạy nhanh
+};
+
+// Trạng thái Game
+let canvas, ctx;
+let gameState = 'START'; // START, PLAYING, GAMEOVER, WIN
+let lastTime = 0;
+let scaleRatio = 1;
+
+// Dữ liệu màn chơi
+let level = 1;
+let map = [];
+let itemsMap = []; // Lưu vị trí vật phẩm ẩn dưới gạch
+let entities = [];
+let bombs = [];
+let particles = [];
+let explosions = [];
+
+// Player
+let player = {
+    x: TILE_SIZE, y: TILE_SIZE,
+    w: TILE_SIZE * 0.7, h: TILE_SIZE * 0.7,
+    speed: 2,
+    dx: 0, dy: 0,
+    lives: 3,
+    bombCount: 1,
+    bombRange: 1,
+    maxBombs: 1,
+    dead: false,
+    invincible: 0
+};
+
+// Input
+const keys = {};
+const touchInput = { up: false, down: false, left: false, right: false, bomb: false };
+
+/**
+ * KHỞI TẠO & VÒNG LẶP
+ */
+window.onload = function() {
+    canvas = document.getElementById('gameCanvas');
+    ctx = canvas.getContext('2d');
+    
+    // Detect Mobile để hiện nút
+    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+        document.getElementById('mobile-controls').style.display = 'flex';
+    }
+
+    resize();
+    window.addEventListener('resize', resize);
+    setupInputs();
+    
+    requestAnimationFrame(gameLoop);
+};
+
+function resize() {
+    // Tính toán tỷ lệ khung hình
+    let maxWidth = window.innerWidth;
+    let maxHeight = window.innerHeight;
+    
+    // Tỷ lệ mong muốn (15x11 tiles)
+    let desiredRatio = (GRID_W * TILE_SIZE) / (GRID_H * TILE_SIZE);
+    let screenRatio = maxWidth / maxHeight;
+
+    let finalW, finalH;
+
+    if (screenRatio > desiredRatio) {
+        finalH = maxHeight;
+        finalW = finalH * desiredRatio;
+    } else {
+        finalW = maxWidth;
+        finalH = finalW / desiredRatio;
+    }
+
+    canvas.width = GRID_W * TILE_SIZE;
+    canvas.height = GRID_H * TILE_SIZE;
+    
+    // Scale CSS để fit màn hình
+    canvas.style.width = finalW + 'px';
+    canvas.style.height = finalH + 'px';
+    
+    scaleRatio = finalW / canvas.width;
+}
+
+function startGame() {
+    document.getElementById('start-screen').classList.add('hidden');
+    player.lives = 3;
+    player.bombCount = 1; // Số bom hiện tại đang cầm
+    player.maxBombs = 1;  // Tổng số bom có thể đặt
+    player.bombRange = 1;
+    player.speed = 2; // Tốc độ cơ bản
+    level = 1;
+    loadLevel(level);
+}
+
+function restartGame() {
+    document.getElementById('game-over-screen').classList.add('hidden');
+    document.getElementById('win-screen').classList.add('hidden');
+    startGame();
+}
+
+function loadLevel(lvl) {
+    gameState = 'PLAYING';
+    document.getElementById('level-screen').classList.add('hidden');
+    
+    // Reset player position
+    player.x = TILE_SIZE;
+    player.y = TILE_SIZE;
+    player.dx = 0; player.dy = 0;
+    player.dead = false;
+    player.invincible = 120; // 2 giây bất tử khi vào màn
+
+    // Cập nhật UI
+    document.getElementById('level-display').innerText = lvl;
+    document.getElementById('lives-display').innerText = player.lives;
+
+    generateMap(lvl);
+}
+
+function gameLoop(timestamp) {
+    let deltaTime = timestamp - lastTime;
+    lastTime = timestamp;
+
+    if (gameState === 'PLAYING') {
+        update(deltaTime);
+        draw();
+    } else if (gameState === 'START' || gameState === 'GAMEOVER') {
+        // Chỉ vẽ background nhẹ
+        // draw(); // Có thể vẽ nền động nếu muốn
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+/**
+ * LOGIC GAME (UPDATE)
+ */
+function update(dt) {
+    if (player.dead) return;
+
+    // 1. Xử lý Input Player
+    handlePlayerMovement();
+
+    // 2. Update Bombs
+    updateBombs();
+
+    // 3. Update Explosions
+    updateExplosions();
+
+    // 4. Update Enemies
+    updateEntities();
+
+    // 5. Check Win Condition
+    let enemies = entities.filter(e => e.type === 'enemy');
+    document.getElementById('enemies-display').innerText = enemies.length;
+    
+    if (enemies.length === 0 && gameState === 'PLAYING') {
+        // Thắng màn
+        gameState = 'TRANSITION';
+        if (level < MAX_LEVEL) {
+            document.getElementById('level-screen').classList.remove('hidden');
+            setTimeout(() => {
+                level++;
+                loadLevel(level);
+            }, 2000);
+        } else {
+            document.getElementById('win-screen').classList.remove('hidden');
+            gameState = 'WIN';
+        }
+    }
+
+    if (player.invincible > 0) player.invincible--;
+}
+
+function handlePlayerMovement() {
+    let moveX = 0;
+    let moveY = 0;
+
+    if (keys['ArrowUp'] || touchInput.up) moveY = -1;
+    if (keys['ArrowDown'] || touchInput.down) moveY = 1;
+    if (keys['ArrowLeft'] || touchInput.left) moveX = -1;
+    if (keys['ArrowRight'] || touchInput.right) moveX = 1;
+    
+    // Đặt bom
+    if ((keys['Space'] || keys[' '] || touchInput.bomb) && player.bombCount > 0) {
+        placeBomb();
+        keys['Space'] = false; // Ngăn đặt liên tục
+        touchInput.bomb = false;
+    }
+
+    // Tính toán di chuyển
+    let speed = player.speed;
+    
+    // Di chuyển trục X
+    if (moveX !== 0) {
+        let nextX = player.x + moveX * speed;
+        if (!checkCollision(nextX, player.y)) {
+            player.x = nextX;
+        } else {
+            // Hỗ trợ trượt (Slide) khi va góc
+            let gridY = Math.round(player.y / TILE_SIZE) * TILE_SIZE;
+            if (Math.abs(gridY - player.y) < TILE_SIZE / 2) {
+                if (player.y < gridY) player.y += speed;
+                else if (player.y > gridY) player.y -= speed;
+            }
+        }
+    }
+
+    // Di chuyển trục Y
+    if (moveY !== 0) {
+        let nextY = player.y + moveY * speed;
+        if (!checkCollision(player.x, nextY)) {
+            player.y = nextY;
+        } else {
+             // Hỗ trợ trượt
+             let gridX = Math.round(player.x / TILE_SIZE) * TILE_SIZE;
+             if (Math.abs(gridX - player.x) < TILE_SIZE / 2) {
+                 if (player.x < gridX) player.x += speed;
+                 else if (player.x > gridX) player.x -= speed;
+             }
+        }
+    }
+    
+    // Check Item Pickup
+    let cx = Math.floor((player.x + TILE_SIZE/2) / TILE_SIZE);
+    let cy = Math.floor((player.y + TILE_SIZE/2) / TILE_SIZE);
+    
+    // Xử lý ăn vật phẩm
+    if (itemsMap[cy] && itemsMap[cy][cx] !== ITEM.NONE) {
+        let item = itemsMap[cy][cx];
+        if (item === ITEM.BLAST_RANGE) player.bombRange++;
+        if (item === ITEM.EXTRA_BOMB) { player.maxBombs++; player.bombCount++; }
+        if (item === ITEM.SPEED) player.speed = Math.min(player.speed + 1, 4);
+        
+        itemsMap[cy][cx] = ITEM.NONE; // Ăn xong mất
+    }
+}
+
+function placeBomb() {
+    // Lấy tọa độ lưới trung tâm
+    let bx = Math.floor((player.x + TILE_SIZE/2) / TILE_SIZE);
+    let by = Math.floor((player.y + TILE_SIZE/2) / TILE_SIZE);
+
+    // Kiểm tra xem ô đó có bom chưa hoặc có phải tường không
+    if (map[by][bx] !== TILE.WALL_HARD && map[by][bx] !== TILE.WALL_SOFT) {
+        // Check if bomb exists
+        if (!bombs.some(b => b.x === bx && b.y === by)) {
+            bombs.push({
+                x: bx, y: by,
+                timer: 180, // 3 seconds (60fps)
+                range: player.bombRange,
+                owner: player
+            });
+            player.bombCount--;
+        }
+    }
+}
+
+function updateBombs() {
+    for (let i = bombs.length - 1; i >= 0; i--) {
+        let b = bombs[i];
+        b.timer--;
+        if (b.timer <= 0) {
+            createExplosion(b.x, b.y, b.range);
+            if (b.owner === player) player.bombCount++;
+            bombs.splice(i, 1);
+        }
+    }
+}
+
+function createExplosion(cx, cy, range) {
+    // Center
+    addExplosionTile(cx, cy);
+
+    // 4 hướng
+    let dirs = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}];
+    
+    dirs.forEach(d => {
+        for (let r = 1; r <= range; r++) {
+            let tx = cx + d.x * r;
+            let ty = cy + d.y * r;
+
+            // Kiểm tra map bounds
+            if (tx < 0 || tx >= GRID_W || ty < 0 || ty >= GRID_H) break;
+
+            let tile = map[ty][tx];
+            
+            if (tile === TILE.WALL_HARD) {
+                break; // Dừng lại
+            } else if (tile === TILE.WALL_SOFT) {
+                map[ty][tx] = TILE.EMPTY; // Phá tường
+                // Drop item random 30%
+                if (Math.random() < 0.3) {
+                     let rand = Math.random();
+                     if (rand < 0.4) itemsMap[ty][tx] = ITEM.BLAST_RANGE;
+                     else if (rand < 0.7) itemsMap[ty][tx] = ITEM.EXTRA_BOMB;
+                     else itemsMap[ty][tx] = ITEM.SPEED;
+                }
+                addExplosionTile(tx, ty);
+                break; // Dừng sau khi phá tường
+            } else {
+                addExplosionTile(tx, ty);
+                
+                // Kích nổ bom dây chuyền
+                let chainBombIndex = bombs.findIndex(b => b.x === tx && b.y === ty);
+                if (chainBombIndex !== -1) {
+                    let b = bombs[chainBombIndex];
+                    b.timer = 1; // Nổ ngay frame sau
+                }
+            }
+        }
+    });
+}
+
+function addExplosionTile(x, y) {
+    explosions.push({x: x, y: y, timer: 30}); // Nổ tồn tại 0.5s
+}
+
+function updateExplosions() {
+    for (let i = explosions.length - 1; i >= 0; i--) {
+        let e = explosions[i];
+        e.timer--;
+        
+        // Check va chạm player
+        let px = Math.floor((player.x + TILE_SIZE/2) / TILE_SIZE);
+        let py = Math.floor((player.y + TILE_SIZE/2) / TILE_SIZE);
+        if (px === e.x && py === e.y && player.invincible === 0) {
+            killPlayer();
+        }
+
+        // Check va chạm quái
+        for (let j = entities.length - 1; j >= 0; j--) {
+            let ent = entities[j];
+            let ex = Math.floor((ent.x + TILE_SIZE/2) / TILE_SIZE);
+            let ey = Math.floor((ent.y + TILE_SIZE/2) / TILE_SIZE);
+            if (ex === e.x && ey === e.y) {
+                entities.splice(j, 1); // Quái chết
+                // Có thể thêm điểm số ở đây
+            }
+        }
+
+        if (e.timer <= 0) explosions.splice(i, 1);
+    }
+}
+
+function killPlayer() {
+    player.dead = true;
+    player.lives--;
+    document.getElementById('lives-display').innerText = player.lives;
+    
+    if (player.lives > 0) {
+        // Respawn sau 1s
+        setTimeout(() => {
+            if(gameState === 'PLAYING') {
+                player.dead = false;
+                player.x = TILE_SIZE;
+                player.y = TILE_SIZE;
+                player.invincible = 120;
+            }
+        }, 1000);
+    } else {
+        gameState = 'GAMEOVER';
+        document.getElementById('game-over-screen').classList.remove('hidden');
+    }
+}
+
+function updateEntities() {
+    entities.forEach(ent => {
+        if (ent.type === 'enemy') {
+            // AI đơn giản: Di chuyển thẳng, gặp tường thì đổi hướng ngẫu nhiên
+            let possibleDirs = [];
+            
+            // Thử đi hướng hiện tại
+            let nextX = ent.x + ent.dx * ent.speed;
+            let nextY = ent.y + ent.dy * ent.speed;
+            
+            // Check collision with map and bombs
+            if (checkCollisionEntity(nextX, nextY, ent.w)) {
+                // Đụng tường, tìm hướng mới
+                // Snap vào grid để rẽ chính xác
+                ent.x = Math.round(ent.x / TILE_SIZE) * TILE_SIZE;
+                ent.y = Math.round(ent.y / TILE_SIZE) * TILE_SIZE;
+
+                // Các hướng khả thi
+                if (!checkCollisionEntity(ent.x + 2, ent.y, ent.w)) possibleDirs.push({dx:1, dy:0});
+                if (!checkCollisionEntity(ent.x - 2, ent.y, ent.w)) possibleDirs.push({dx:-1, dy:0});
+                if (!checkCollisionEntity(ent.x, ent.y + 2, ent.w)) possibleDirs.push({dx:0, dy:1});
+                if (!checkCollisionEntity(ent.x, ent.y - 2, ent.w)) possibleDirs.push({dx:0, dy:-1});
+
+                if (possibleDirs.length > 0) {
+                    let dir = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
+                    ent.dx = dir.dx;
+                    ent.dy = dir.dy;
+                } else {
+                    ent.dx = -ent.dx; ent.dy = -ent.dy; // Quay đầu
+                }
+            } else {
+                ent.x = nextX;
+                ent.y = nextY;
+            }
+
+            // Check va chạm với Player
+            if (!player.dead && player.invincible === 0) {
+                let dx = (player.x + TILE_SIZE/2) - (ent.x + TILE_SIZE/2);
+                let dy = (player.y + TILE_SIZE/2) - (ent.y + TILE_SIZE/2);
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < TILE_SIZE * 0.8) {
+                    killPlayer();
+                }
+            }
+        }
+    });
+}
+
+// Kiểm tra va chạm cho Player (đã sửa lỗi kẹt bom)
+function checkCollision(x, y) {
+    // 4 góc của hình chữ nhật player
+    let margin = 4;
+    let testPoints = [
+        {x: x + margin, y: y + margin},
+        {x: x + TILE_SIZE - margin, y: y + margin},
+        {x: x + margin, y: y + TILE_SIZE - margin},
+        {x: x + TILE_SIZE - margin, y: y + TILE_SIZE - margin}
+    ];
+
+    // Check Tường
+    for (let p of testPoints) {
+        let gx = Math.floor(p.x / TILE_SIZE);
+        let gy = Math.floor(p.y / TILE_SIZE);
+        if (gx < 0 || gx >= GRID_W || gy < 0 || gy >= GRID_H) return true;
+        if (map[gy][gx] === TILE.WALL_HARD || map[gy][gx] === TILE.WALL_SOFT) return true;
+    }
+
+    // Check Bom (Logic mới: Rect Overlap)
+    // Nếu bạn đang đứng dính vào bom -> Được đi
+    // Nếu bạn đang đứng ngoài -> Bị chặn
+    let playerRectNew = {l: x, r: x + TILE_SIZE, t: y, b: y + TILE_SIZE};
+    let playerRectCurrent = {l: player.x, r: player.x + TILE_SIZE, t: player.y, b: player.y + TILE_SIZE};
+
+    for (let b of bombs) {
+        let bombRect = {
+            l: b.x * TILE_SIZE, r: (b.x + 1) * TILE_SIZE,
+            t: b.y * TILE_SIZE, b: (b.y + 1) * TILE_SIZE
+        };
+
+        // Nếu vị trí MỚI sẽ va chạm với bom
+        if (isIntersect(playerRectNew, bombRect, margin)) {
+            // Kiểm tra xem hiện tại có đang dính vào bom này không?
+            if (isIntersect(playerRectCurrent, bombRect, margin)) {
+                // Đang dính -> Cho phép di chuyển (để thoát ra)
+                continue;
+            } else {
+                // Đang ở ngoài -> Chặn lại
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function isIntersect(r1, r2, margin) {
+    // Thu nhỏ rect 1 chút theo margin để cảm giác điều khiển tốt hơn
+    return !(r2.l >= r1.r - margin || 
+             r2.r <= r1.l + margin || 
+             r2.t >= r1.b - margin || 
+             r2.b <= r1.t + margin);
+}
+
+
+// Kiểm tra va chạm cho AI (đơn giản hơn)
+function checkCollisionEntity(x, y, size) {
+    let gx = Math.floor((x + size/2) / TILE_SIZE);
+    let gy = Math.floor((y + size/2) / TILE_SIZE);
+    
+    if (gx < 0 || gx >= GRID_W || gy < 0 || gy >= GRID_H) return true;
+    if (map[gy][gx] !== TILE.EMPTY) return true; // AI không đi qua gạch, bom
+    
+    // AI tránh bom
+    if (bombs.some(b => b.x === gx && b.y === gy)) return true;
+    
+    return false;
+}
+
+/**
+ * MAP GENERATION
+ */
+function generateMap(lvl) {
+    map = [];
+    itemsMap = [];
+    entities = [];
+    bombs = [];
+    explosions = [];
+    
+    // 1. Tạo lưới cơ bản
+    for (let y = 0; y < GRID_H; y++) {
+        let row = [];
+        let itemRow = [];
+        for (let x = 0; x < GRID_W; x++) {
+            itemRow.push(ITEM.NONE);
+            if (y === 0 || y === GRID_H - 1 || x === 0 || x === GRID_W - 1) {
+                row.push(TILE.WALL_HARD); // Viền
+            } else if (x % 2 === 0 && y % 2 === 0) {
+                row.push(TILE.WALL_HARD); // Cọc cố định bên trong
+            } else {
+                // Tỉ lệ gạch mềm tùy level (Level cao ít gạch hơn để quái chạy nhanh?)
+                // Hoặc nhiều gạch để khó tìm đường.
+                if ((x > 2 || y > 2) && Math.random() < 0.4) { // Chừa góc xuất phát (1,1)
+                     row.push(TILE.WALL_SOFT);
+                } else {
+                     row.push(TILE.EMPTY);
+                }
+            }
+        }
+        map.push(row);
+        itemsMap.push(itemRow);
+    }
+
+    // 2. Spawn Enemies
+    // Số lượng quái: Lvl 1: 3, Lvl 2: 5, Lvl 3: 7
+    let enemyCount = 2 + lvl * 2; 
+    let speed = 1 + lvl * 0.3; // Quái nhanh dần
+    
+    let spawned = 0;
+    while (spawned < enemyCount) {
+        let rx = Math.floor(Math.random() * GRID_W);
+        let ry = Math.floor(Math.random() * GRID_H);
+        
+        // Không spawn quá gần player (gốc 1,1)
+        if (map[ry][rx] === TILE.EMPTY && (rx > 5 || ry > 5)) {
+            entities.push({
+                type: 'enemy',
+                x: rx * TILE_SIZE,
+                y: ry * TILE_SIZE,
+                w: TILE_SIZE, h: TILE_SIZE,
+                dx: 1, dy: 0, // Hướng ban đầu
+                speed: speed,
+                color: lvl === 1 ? '#ff9800' : (lvl === 2 ? '#e91e63' : '#9c27b0') // Cam -> Hồng -> Tím
+            });
+            spawned++;
+        }
+    }
+}
+
+
+/**
+ * RENDER
+ */
+function draw() {
+    // Clear Background
+    ctx.fillStyle = '#5D9E43';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Vẽ Map
+    for (let y = 0; y < GRID_H; y++) {
+        for (let x = 0; x < GRID_W; x++) {
+            let tile = map[y][x];
+            let px = x * TILE_SIZE;
+            let py = y * TILE_SIZE;
+
+            // Vật phẩm (nằm dưới)
+            if (itemsMap[y][x] !== ITEM.NONE && tile === TILE.EMPTY) {
+                let item = itemsMap[y][x];
+                ctx.fillStyle = '#FFD700'; // Vàng
+                ctx.beginPath();
+                ctx.arc(px + TILE_SIZE/2, py + TILE_SIZE/2, TILE_SIZE/3, 0, Math.PI*2);
+                ctx.fill();
+                
+                ctx.fillStyle = '#000';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let txt = item === ITEM.BLAST_RANGE ? 'P' : (item === ITEM.EXTRA_BOMB ? 'B' : 'S');
+                ctx.fillText(txt, px + TILE_SIZE/2, py + TILE_SIZE/2);
+            }
+
+            // Tường cứng
+            if (tile === TILE.WALL_HARD) {
+                // Style cây/đá
+                ctx.fillStyle = '#2E7D32'; // Xanh lá đậm
+                ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                // Highlight
+                ctx.fillStyle = '#4CAF50';
+                ctx.fillRect(px+5, py+5, TILE_SIZE-10, TILE_SIZE-10);
+            }
+            // Tường mềm (Gạch)
+            else if (tile === TILE.WALL_SOFT) {
+                ctx.fillStyle = '#795548'; // Nâu
+                ctx.fillRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+                // Đường kẻ gạch
+                ctx.strokeStyle = '#5D4037';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(px+5, py+5, TILE_SIZE-10, TILE_SIZE-10);
+            }
+        }
+    }
+
+    // Vẽ Bom
+    bombs.forEach(b => {
+        let cx = b.x * TILE_SIZE + TILE_SIZE/2;
+        let cy = b.y * TILE_SIZE + TILE_SIZE/2;
+        
+        // Hiệu ứng phồng xẹp
+        let scale = 1 + Math.sin(Date.now() / 100) * 0.1;
+        
+        ctx.fillStyle = '#03A9F4'; // Xanh bóng nước
+        ctx.beginPath();
+        ctx.arc(cx, cy, (TILE_SIZE/2 - 2) * scale, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Bóng sáng
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath();
+        ctx.arc(cx - 5, cy - 5, 5, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // Vẽ Vụ nổ
+    explosions.forEach(e => {
+        let cx = e.x * TILE_SIZE;
+        let cy = e.y * TILE_SIZE;
+        ctx.fillStyle = 'rgba(33, 150, 243, 0.8)'; // Nước bắn
+        ctx.fillRect(cx, cy, TILE_SIZE, TILE_SIZE);
+    });
+
+    // Vẽ Quái
+    entities.forEach(ent => {
+        if (ent.type === 'enemy') {
+            ctx.fillStyle = ent.color;
+            
+            // Vẽ hình dạng quái (tròn mềm)
+            ctx.beginPath();
+            let r = TILE_SIZE / 2 - 2;
+            ctx.arc(ent.x + TILE_SIZE/2, ent.y + TILE_SIZE/2, r, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Mắt
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(ent.x + TILE_SIZE/2 - 6, ent.y + TILE_SIZE/2 - 4, 4, 0, Math.PI * 2);
+            ctx.arc(ent.x + TILE_SIZE/2 + 6, ent.y + TILE_SIZE/2 - 4, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'black';
+             ctx.beginPath();
+            ctx.arc(ent.x + TILE_SIZE/2 - 6, ent.y + TILE_SIZE/2 - 4, 2, 0, Math.PI * 2);
+            ctx.arc(ent.x + TILE_SIZE/2 + 6, ent.y + TILE_SIZE/2 - 4, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    });
+
+    // Vẽ Player
+    if (!player.dead) {
+        let pcx = player.x + TILE_SIZE/2;
+        let pcy = player.y + TILE_SIZE/2;
+        
+        if (player.invincible > 0 && Math.floor(Date.now() / 100) % 2 === 0) {
+            // Nhấp nháy khi bất tử
+        } else {
+            // Đầu
+            ctx.fillStyle = '#f44336'; // Đỏ (Boom Boom)
+            ctx.beginPath();
+            ctx.arc(pcx, pcy, TILE_SIZE/2 - 2, 0, Math.PI*2);
+            ctx.fill();
+            
+            // Mũ trùm (giả lập)
+            ctx.fillStyle = '#d32f2f';
+            ctx.beginPath();
+            ctx.arc(pcx, pcy - 5, TILE_SIZE/2 - 6, Math.PI, 0);
+            ctx.fill();
+
+            // Mắt
+            ctx.fillStyle = 'white';
+            ctx.fillRect(pcx - 10, pcy - 8, 8, 6);
+            ctx.fillRect(pcx + 2, pcy - 8, 8, 6);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(pcx - 8, pcy - 6, 4, 4);
+            ctx.fillRect(pcx + 4, pcy - 6, 4, 4);
+        }
+    }
+}
+
+/**
+ * INPUT HANDLING
+ */
+function setupInputs() {
+    // Keyboard
+    window.addEventListener('keydown', e => {
+        keys[e.key] = true;
+        keys[e.code] = true;
+        if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+    });
+    window.addEventListener('keyup', e => {
+        keys[e.key] = false;
+        keys[e.code] = false;
+    });
+
+    // Touch
+    const setupTouch = (selector, key) => {
+        const el = document.querySelector(selector);
+        el.addEventListener('touchstart', (e) => { e.preventDefault(); touchInput[key] = true; });
+        el.addEventListener('touchend', (e) => { e.preventDefault(); touchInput[key] = false; });
+        // Fix: Prevent default move to avoid scroll interference
+        el.addEventListener('touchmove', (e) => { e.preventDefault(); });
+    };
+
+    setupTouch('.d-up', 'up');
+    setupTouch('.d-down', 'down');
+    setupTouch('.d-left', 'left');
+    setupTouch('.d-right', 'right');
+    
+    const btnBomb = document.getElementById('btn-bomb');
+    btnBomb.addEventListener('touchstart', (e) => { e.preventDefault(); touchInput.bomb = true; });
+    btnBomb.addEventListener('touchend', (e) => { e.preventDefault(); touchInput.bomb = false; });
+    btnBomb.addEventListener('touchmove', (e) => { e.preventDefault(); });
+}
+
+</script>
+</body>
+</html>
